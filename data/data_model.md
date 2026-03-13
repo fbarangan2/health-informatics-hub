@@ -29,27 +29,35 @@ Example:
 
 ---
 
-## Dim_Region
-
-Represents large geographic regions within a country.
-
-| Field | Description |
-|------|-------------|
-region_id | unique identifier |
-country_id | country reference |
-region_name | region name |
-
----
-
 ## Dim_Geography
 
-Represents administrative areas such as provinces, states, or cities.
+Represents geographic administrative areas within a country.
+
+This table supports hierarchical geographic structures such as:
+
+Country → State → County → City  
+Country → Region → Province → Municipality
 
 | Field | Description |
 |------|-------------|
-area_id | unique identifier |
-region_id | region reference |
-area_name | province / state / city |
+geo_id | unique geographic identifier |
+geo_name | name of geographic area |
+geo_level | level type (country, region, state, province, city, etc) |
+parent_geo_id | parent geographic level |
+country_id | reference to country |
+
+Example hierarchy:
+
+| geo_id | geo_name | geo_level | parent_geo_id | country_id |
+|------|-------------|-------------|-------------|-------------|
+1 | Philippines | country | null | PH |
+2 | Central Luzon | region | 1 | PH |
+3 | Bulacan | province | 2 | PH |
+4 | Malolos | city | 3 | PH |
+5 | United States | country | null | US |
+6 | Ohio | state | 5 | US |
+
+This design allows unlimited geographic levels across countries.
 
 ---
 
@@ -92,7 +100,7 @@ Stores population demographics.
 | Field | Description |
 |------|-------------|
 country_id | country |
-area_id | province/state |
+geo_id | geographic area |
 year | year |
 age_group_id | age group |
 population | population count |
@@ -106,7 +114,7 @@ Stores hospital infrastructure information.
 | Field | Description |
 |------|-------------|
 country_id | country |
-area_id | geographic area |
+geo_id | geographic area |
 hospital_name | hospital |
 bed_capacity | total beds |
 hospital_type | hospital classification |
@@ -120,7 +128,7 @@ Stores healthcare demand analytics.
 | Field | Description |
 |------|-------------|
 country_id | country |
-area_id | region/province |
+geo_id | geographic area |
 year | year |
 demand_score | calculated demand score |
 demand_category | low / medium / high |
@@ -131,13 +139,13 @@ demand_category | low / medium / high |
 
 Example question:
 
-Which regions have the highest healthcare demand?
+Which geographic areas have the highest healthcare demand?
 
 Example output:
 
-| Country | Region | Demand Score |
+| Country | Geography | Demand Score |
 |--------|--------|--------------|
-Philippines | Central Luzon | High |
+Philippines | Bulacan | High |
 United States | Ohio | Medium |
 
 ---
@@ -148,5 +156,6 @@ The model follows these principles:
 
 - country-agnostic design
 - scalable to multiple datasets
+- hierarchical geographic support
 - compatible with cloud data platforms
 - optimized for analytics and machine learning
