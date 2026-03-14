@@ -1,20 +1,20 @@
 Health Informatics Hub Vision
 
-Purpose:
+Purpose: <br />
 Provide healthcare demand intelligence for hospitals,
 governments, and investors.
 
-Core Capability:
-Estimate healthcare demand by region using:
+Core Capability: <br />
+Estimate healthcare demand by region using: <br />
 
-• population
-• age distribution
-• hospital capacity
-• disease prevalence
-• insurance coverage
+• population <br />
+• age distribution <br />
+• hospital capacity <br />
+• disease prevalence <br />
+• insurance coverage <br />
 
-Primary Outputs:
+Primary Outputs: <br />
 
-Healthcare Demand Score
-Hospital Supply vs Demand Gap
-Regional Healthcare Investment Opportunities
+Healthcare Demand Score <br />
+Hospital Supply vs Demand Gap <br />
+Regional Healthcare Investment Opportunities <br />
