@@ -1,8 +1,0 @@
-paths:
-  bronze: data/Bronze
-  silver: data/Silver
-  gold: data/Gold
-
-datasets:
-  hospitals: ph_hospitals.csv
-  population: ph_population.csv
