@@ -1,6 +1,6 @@
-# Health Care Informatics Hub (healthcareinformaticshub.com)
+# HealthCare Informatics Hub (healthcareinformaticshub.com)
 
-Health Care Informatics Hub is a prototype healthcare analytics platform designed to explore how modern data platforms can integrate public health and demographic datasets to generate insights on regional healthcare demand.
+HealthCare Informatics Hub is a prototype healthcare analytics platform designed to explore how modern data platforms can integrate public health and demographic datasets to generate insights on regional healthcare demand.
 
 This project is being developed as a hands-on learning environment while preparing for the Microsoft DP-600 (Fabric Analytics Engineer) certification.
 
