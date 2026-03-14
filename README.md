@@ -3,16 +3,16 @@ Healthcare analytics platform using Azure to forecast hospital demand and health
 
 # Tech Stack
 
-Data Engineering
-• Python
-• Pandas
-• ETL Pipelines
+Data Engineering <br />
+• Python <br />
+• Pandas <br />
+• ETL Pipelines <br />
 
-Cloud (Planned)
-• Azure Data Lake
-• Azure Databricks
-• Azure ML
-• Azure Functions
+Cloud (Planned)  <br />
+• Azure Data Lake <br />
+• Azure Databricks <br />
+• Azure ML <br />
+• Azure Functions <br />
 
-Analytics
-• Power BI
+Analytics <br />
+• Power BI <br />
