@@ -27,3 +27,4 @@ node_modules/
 secrets.json
 *.key
 *.pem
+.venv/
