@@ -1,0 +1,235 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "projectName": {
+      "type": "string",
+      "defaultValue": "healthinformatics",
+      "metadata": { "description": "Base name for all resources" }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": { "description": "Azure region for all resources" }
+    },
+    "sqlAdminPassword": {
+      "type": "securestring",
+      "metadata": { "description": "SQL Server admin password" }
+    },
+    "apiKey": {
+      "type": "securestring",
+      "metadata": { "description": "API key for Health Informatics Hub API" }
+    }
+  },
+  "variables": {
+    "storageAccountName": "[concat(parameters('projectName'), 'storage')]",
+    "keyVaultName": "[concat(parameters('projectName'), '-kv')]",
+    "sqlServerName": "[concat(parameters('projectName'), '-sql')]",
+    "sqlDatabaseName": "HealthInformatics",
+    "acrName": "[concat(parameters('projectName'), 'acr')]",
+    "workspaceName": "[concat(parameters('projectName'), '-ml')]",
+    "containerAppEnvName": "[concat(parameters('projectName'), '-env')]",
+    "containerAppName": "[concat(parameters('projectName'), '-api')]",
+    "logAnalyticsName": "[concat(parameters('projectName'), '-logs')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard_GRS" },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot",
+        "supportsHttpsTrafficOnly": true,
+        "minimumTlsVersion": "TLS1_2",
+        "isHnsEnabled": true,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Allow"
+        }
+      },
+      "resources": [
+        {
+          "type": "blobServices/containers",
+          "apiVersion": "2023-01-01",
+          "name": "default/raw-data",
+          "dependsOn": ["[variables('storageAccountName')]"],
+          "properties": { "publicAccess": "None" }
+        },
+        {
+          "type": "blobServices/containers",
+          "apiVersion": "2023-01-01",
+          "name": "default/processed-data",
+          "dependsOn": ["[variables('storageAccountName')]"],
+          "properties": { "publicAccess": "None" }
+        },
+        {
+          "type": "blobServices/containers",
+          "apiVersion": "2023-01-01",
+          "name": "default/ml-models",
+          "dependsOn": ["[variables('storageAccountName')]"],
+          "properties": { "publicAccess": "None" }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-02-01",
+      "name": "[variables('keyVaultName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": { "family": "A", "name": "standard" },
+        "tenantId": "[subscription().tenantId]",
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 90,
+        "enableRbacAuthorization": true,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Allow"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2023-02-01-preview",
+      "name": "[variables('sqlServerName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "administratorLogin": "healthadmin",
+        "administratorLoginPassword": "[parameters('sqlAdminPassword')]",
+        "version": "12.0",
+        "minimalTlsVersion": "1.2"
+      },
+      "resources": [
+        {
+          "type": "databases",
+          "apiVersion": "2023-02-01-preview",
+          "name": "[variables('sqlDatabaseName')]",
+          "location": "[parameters('location')]",
+          "dependsOn": ["[variables('sqlServerName')]"],
+          "sku": { "name": "GP_Gen5_2", "tier": "GeneralPurpose" },
+          "properties": {
+            "collation": "SQL_Latin1_General_CP1_CI_AS",
+            "maxSizeBytes": 34359738368,
+            "zoneRedundant": false
+          }
+        },
+        {
+          "type": "firewallRules",
+          "apiVersion": "2023-02-01-preview",
+          "name": "AllowAzureServices",
+          "dependsOn": ["[variables('sqlServerName')]"],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('acrName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "properties": {
+        "adminUserEnabled": false,
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[variables('logAnalyticsName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": { "name": "PerGB2018" },
+        "retentionInDays": 90
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('containerAppEnvName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": ["[variables('logAnalyticsName')]"],
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(variables('logAnalyticsName')).customerId]",
+            "sharedKey": "[listKeys(variables('logAnalyticsName'), '2022-10-01').primarySharedKey]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('containerAppName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('containerAppEnvName')]",
+        "[variables('acrName')]"
+      ],
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerAppEnvName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8000,
+            "transport": "http",
+            "corsPolicy": {
+              "allowedOrigins": ["*"],
+              "allowedMethods": ["GET", "POST"]
+            }
+          },
+          "registries": [{
+            "server": "[concat(variables('acrName'), '.azurecr.io')]",
+            "identity": "system"
+          }]
+        },
+        "template": {
+          "containers": [{
+            "name": "health-informatics-api",
+            "image": "[concat(variables('acrName'), '.azurecr.io/health-informatics-hub:latest')]",
+            "resources": {
+              "cpu": 1.0,
+              "memory": "2Gi"
+            },
+            "env": [
+              { "name": "API_KEY", "secretRef": "api-key" },
+              { "name": "AZURE_STORAGE_ACCOUNT", "value": "[variables('storageAccountName')]" },
+              { "name": "LOG_LEVEL", "value": "INFO" }
+            ]
+          }],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 5,
+            "rules": [{
+              "name": "http-scaling",
+              "http": { "metadata": { "concurrentRequests": "50" } }
+            }]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "storageAccountName": { "type": "string", "value": "[variables('storageAccountName')]" },
+    "keyVaultUrl": {
+      "type": "string",
+      "value": "[concat('https://', variables('keyVaultName'), '.vault.azure.net/')]"
+    },
+    "containerAppUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(variables('containerAppName')).configuration.ingress.fqdn)]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(variables('acrName')).loginServer]"
+    }
+  }
+}
