@@ -1,0 +1,56 @@
+# Health Informatics Hub - Dependencies
+# Core Data Science
+pandas==2.1.4
+numpy==1.26.2
+scikit-learn==1.3.2
+scipy==1.11.4
+
+# Time Series Forecasting
+prophet==1.1.5
+statsmodels==0.14.1
+
+# Deep Learning
+torch==2.1.2
+torchvision==0.16.2
+
+# Azure SDK
+azure-storage-blob==12.19.0
+azure-identity==1.15.0
+azure-keyvault-secrets==4.7.0
+azure-monitor-opentelemetry==1.1.1
+azure-ai-ml==1.12.0
+azure-synapse-analytics==0.1.0b1
+
+# API
+fastapi==0.104.1
+uvicorn[standard]==0.24.0.post1
+pydantic==2.5.2
+
+# Database
+sqlalchemy==2.0.23
+pyodbc==5.0.1
+psycopg2-binary==2.9.9
+
+# Visualization
+plotly==5.18.0
+dash==2.14.2
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Utilities
+python-dotenv==1.0.0
+loguru==0.7.2
+pyyaml==6.0.1
+httpx==0.25.2
+tenacity==8.2.3
+rich==13.7.0
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# Monitoring & Observability
+opentelemetry-sdk==1.21.0
+opentelemetry-exporter-otlp==1.21.0
