@@ -1,0 +1,177 @@
+# Azure DevOps CI/CD Pipeline - Health Informatics Hub
+# Handles: test → build → push to ACR → deploy to Azure Container Apps
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - docs/**
+      - "*.md"
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  PYTHON_VERSION: "3.11"
+  ACR_NAME: "healthinfoacr"
+  IMAGE_NAME: "health-informatics-hub"
+  RESOURCE_GROUP: "rg-health-informatics"
+  CONTAINER_APP_NAME: "health-informatics-api"
+  AZURE_SUBSCRIPTION: "$(AZURE_SUBSCRIPTION_ID)"
+
+stages:
+
+  # ─── Stage 1: Test ─────────────────────────────────────────────────────────
+  - stage: Test
+    displayName: "Run Tests"
+    jobs:
+      - job: UnitTests
+        displayName: "Unit & Integration Tests"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
+            displayName: "Use Python $(PYTHON_VERSION)"
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: "Install dependencies"
+
+          - script: |
+              pip install pytest pytest-cov pytest-asyncio
+              pytest tests/ \
+                --cov=src \
+                --cov-report=xml:coverage.xml \
+                --cov-report=html:htmlcov \
+                --junitxml=test-results.xml \
+                -v
+            displayName: "Run pytest"
+
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFiles: "test-results.xml"
+              testRunTitle: "Health Informatics Hub Tests"
+            condition: always()
+            displayName: "Publish test results"
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: "coverage.xml"
+              reportDirectory: "htmlcov"
+            displayName: "Publish coverage"
+
+      - job: CodeQuality
+        displayName: "Code Quality Checks"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
+
+          - script: |
+              pip install ruff mypy bandit safety
+              ruff check src/ tests/
+              mypy src/ --ignore-missing-imports
+              bandit -r src/ -ll
+              safety check -r requirements.txt
+            displayName: "Lint, type-check, security scan"
+
+  # ─── Stage 2: Build & Push ─────────────────────────────────────────────────
+  - stage: Build
+    displayName: "Build & Push Image"
+    dependsOn: Test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: DockerBuildPush
+        displayName: "Build Docker image and push to ACR"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: "AzureServiceConnection"
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                IMAGE_TAG=$(Build.BuildId)
+                FULL_IMAGE=$(ACR_NAME).azurecr.io/$(IMAGE_NAME):$IMAGE_TAG
+                LATEST_IMAGE=$(ACR_NAME).azurecr.io/$(IMAGE_NAME):latest
+
+                az acr login --name $(ACR_NAME)
+                docker build \
+                  --build-arg BUILD_ID=$IMAGE_TAG \
+                  -t $FULL_IMAGE \
+                  -t $LATEST_IMAGE .
+                docker push $FULL_IMAGE
+                docker push $LATEST_IMAGE
+
+                echo "##vso[task.setvariable variable=imageTag]$IMAGE_TAG"
+            displayName: "Build and push Docker image"
+
+  # ─── Stage 3: Deploy ───────────────────────────────────────────────────────
+  - stage: Deploy
+    displayName: "Deploy to Azure Container Apps"
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployContainerApp
+        displayName: "Deploy API to Container Apps"
+        pool:
+          vmImage: "ubuntu-latest"
+        environment: "production"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: "AzureServiceConnection"
+                    scriptType: "bash"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      az containerapp update \
+                        --name $(CONTAINER_APP_NAME) \
+                        --resource-group $(RESOURCE_GROUP) \
+                        --image $(ACR_NAME).azurecr.io/$(IMAGE_NAME):$(Build.BuildId) \
+                        --set-env-vars \
+                          AZURE_STORAGE_ACCOUNT=$(AZURE_STORAGE_ACCOUNT) \
+                          AZURE_KEY_VAULT_URL=$(AZURE_KEY_VAULT_URL) \
+                          API_KEY=$(API_KEY) \
+                          LOG_LEVEL=INFO
+                  displayName: "Update Container App"
+
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: "AzureServiceConnection"
+                    scriptType: "bash"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      # Health check
+                      FQDN=$(az containerapp show \
+                        --name $(CONTAINER_APP_NAME) \
+                        --resource-group $(RESOURCE_GROUP) \
+                        --query "properties.configuration.ingress.fqdn" -o tsv)
+
+                      echo "Checking health at https://$FQDN/health"
+                      for i in {1..5}; do
+                        STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$FQDN/health)
+                        if [ "$STATUS" == "200" ]; then
+                          echo "Health check passed!"
+                          exit 0
+                        fi
+                        echo "Attempt $i: HTTP $STATUS — retrying..."
+                        sleep 15
+                      done
+                      echo "Health check failed after 5 attempts"
+                      exit 1
+                  displayName: "Verify deployment health"
