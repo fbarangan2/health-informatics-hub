@@ -19,7 +19,7 @@ azure-identity==1.15.0
 azure-keyvault-secrets==4.7.0
 azure-monitor-opentelemetry==1.1.1
 azure-ai-ml==1.12.0
-azure-synapse-analytics==0.1.0b1
+azure-synapse-analytics
 
 # API
 fastapi==0.104.1
